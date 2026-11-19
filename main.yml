@@ -195,6 +195,15 @@
     host_ips: []
 
   tasks:
+    - name: Check the selected Pi nodes for the scaling grid.
+      ansible.builtin.assert:
+        that:
+          - ansible_play_hosts_all | length == scaling_nodes | int
+          - ansible_facts.processor_vcpus | int == 4
+          - hpl_dat_opts.Ns | int > 0
+        fail_msg: "Scaling requires the requested node count, four CPUs per Pi, and a positive configured N."
+      when: scaling_output is defined
+
     - name: Create a file describing nodes for MPI execution.
       ansible.builtin.template:
         src: templates/mpi-node-config.j2
@@ -212,18 +221,25 @@
     - name: Generate list of host IP addresses.
       ansible.builtin.set_fact:
         host_ips: "{{ host_ips + [ hostvars[item].ansible_facts.default_ipv4.address ] }}"
-      loop: "{{ groups['cluster'] }}"
+      loop: "{{ ansible_play_hosts_all }}"
 
     # If this is not done, the nodes will fail to connect to each other
     # causing the playbook to hang at 'Run the benchmark.'
     - include_tasks: tasks/firewall-configure.yml
       when:
         - ansible_facts['os_family'] == "RedHat"
-        - groups['cluster'] | length > 1
+        - ansible_play_hosts_all | length > 1
+
+    - name: Install clock sampler for scaling runs.
+      ansible.builtin.copy:
+        src: hpl-clock.sh
+        dest: "{{ hpl_root }}/tmp/hpl-2.3/bin/top500/hpl-clock.sh"
+        mode: '0755'
+      when: scaling_output is defined
 
     - name: Run the benchmark.
       ansible.builtin.command: >-
-        "{{ hpl_root }}/mpich/bin/mpirun" -f cluster-hosts ./xhpl
+        "{{ hpl_root }}/mpich/bin/mpirun" -f cluster-hosts {{ (scaling_output is defined) | ternary('./hpl-clock.sh', './xhpl') }}
       args:
         chdir: "{{ hpl_root }}/tmp/hpl-2.3/bin/top500"
       register: mpirun_output
@@ -235,3 +251,12 @@
     - name: Output the results.
       debug: var=mpirun_output.stdout
       run_once: true
+
+    - name: Save scaling run output on the controller.
+      ansible.builtin.copy:
+        content: "{{ mpirun_output.stdout }}\n"
+        dest: "{{ scaling_output }}"
+        mode: '0644'
+      delegate_to: localhost
+      run_once: true
+      when: scaling_output is defined
