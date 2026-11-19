@@ -1,4 +1,4 @@
-{% for host in groups['cluster'] %}
+{% for host in ansible_play_hosts_all %}
 {# NOTE: Use ansible_processor_cores if you have trouble with CPU threads. #}
-{{ hostvars[host].ansible_facts.default_ipv4.address }}:{{ hostvars[host].ansible_processor_vcpus }}
+{{ hostvars[host].ansible_facts.default_ipv4.address }}:{{ hostvars[host].ansible_facts.processor_vcpus }}
 {% endfor %}

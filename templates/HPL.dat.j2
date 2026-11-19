@@ -9,8 +9,8 @@ HPL.out      output file name (if any)
 {{ hpl_dat_opts.NBs }}           NBs
 0            PMAP process mapping (0=Row-,1=Column-major)
 1            # of process grids (P x Q)
-{{ hpl_dat_opts.Ps }}            Ps
-{{ hpl_dat_opts.Qs }}            Qs
+{{ scaling_p | default(hpl_dat_opts.Ps) }}            Ps
+{{ scaling_q | default(hpl_dat_opts.Qs) }}            Qs
 16.0         threshold
 1            # of panel fact
 2            PFACTs (0=left, 1=Crout, 2=Right)
